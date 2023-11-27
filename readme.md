@@ -1,3 +1,7 @@
+![image](https://github.com/robathanjames/mnr-v-quantum_tests/assets/97772344/3c560c2e-f493-470c-940d-a316a5f898b1) ![image](https://github.com/robathanjames/mnr-v-quantum_tests/assets/97772344/d789139c-436b-4894-9f09-30482f711f89)
+
+4-qubit example
+
 The model is trained on Open Images V7 and is being used in other computer vision projects I'm working on currently.
 
 In this case, the input is a 16x16 image and the output is a 256-D feature vector. This vector encapsulates high-level features extracted from the image for the classification task.
