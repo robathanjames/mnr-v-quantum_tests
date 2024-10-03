@@ -3,9 +3,13 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from qiskit import QuantumCircuit, Aer, execute
+from qiskit import QuantumCircuit, Aer, execute, transpile
 from qiskit.circuit import Parameter
-from qiskit.visualization import plot_histogram
+from qiskit.utils import QuantumInstance
+from qiskit.algorithms.optimizers import COBYLA
+from qiskit_machine_learning.connectors import TorchConnector
+from qiskit_machine_learning.neural_networks import EstimatorQNN
+from qiskit.providers.aer import AerSimulator
 
 # Define the CNN model
 class SimpleCNN(nn.Module):
@@ -15,19 +19,20 @@ class SimpleCNN(nn.Module):
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.fc1 = nn.Linear(32 * 7 * 7, 128)  # Assuming input image size is 28x28
+        self.fc2 = nn.Linear(128, 4)  # Output size must match the number of qubits in quantum layer
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = x.view(-1, 32 * 7 * 7)
         x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
         return x
 
 # Quantum Circuit as a Quantum Layer with Parameterized Quantum Circuits
-def quantum_layer(feature_vector):
-    n_qubits = len(feature_vector)
+def create_quantum_circuit(n_qubits):
     params = [Parameter(f'theta_{i}') for i in range(n_qubits)]
-    circuit = QuantumCircuit(n_qubits, n_qubits)
+    circuit = QuantumCircuit(n_qubits)
     
     # Apply Ry gates with parameterized rotation angles
     for i, param in enumerate(params):
@@ -37,41 +42,29 @@ def quantum_layer(feature_vector):
     for i in range(n_qubits - 1):
         circuit.cx(i, i + 1)
     
-    # Bind parameters to feature vector values
-    parameter_binds = {param: feature_vector[i] for i, param in enumerate(params)}
-    
-    # Measure all qubits
-    circuit.measure(range(n_qubits), range(n_qubits))
-    
-    # Run the quantum circuit on a simulator
-    simulator = Aer.get_backend('qasm_simulator')
-    result = execute(circuit, simulator, shots=1024, parameter_binds=[parameter_binds]).result()
-    counts = result.get_counts()
-    
-    # Convert counts to a feature vector (using expectation values)
-    expectation_values = []
-    for i in range(n_qubits):
-        zeros = sum([counts[state] for state in counts if state[i] == '0'])
-        ones = sum([counts[state] for state in counts if state[i] == '1'])
-        expectation_values.append((ones - zeros) / (ones + zeros))
-    
-    return np.array(expectation_values)
+    return circuit, params
+
+# Create a Quantum Neural Network using Qiskit Machine Learning
+def create_quantum_neural_network(n_qubits):
+    quantum_circuit, params = create_quantum_circuit(n_qubits)
+    backend = AerSimulator()
+    quantum_instance = QuantumInstance(backend, shots=1024)
+    qnn = EstimatorQNN(quantum_circuit, params, input_params=params, quantum_instance=quantum_instance)
+    return qnn
 
 # Hybrid Model combining CNN and Quantum Layer
 class HybridModel(nn.Module):
     def __init__(self):
         super(HybridModel, self).__init__()
         self.cnn = SimpleCNN()
-        self.fc2 = nn.Linear(128, 4)  # Output size must match the number of qubits in quantum layer
+        self.qnn = create_quantum_neural_network(4)
+        self.quantum_layer = TorchConnector(self.qnn)
         self.fc3 = nn.Linear(4, 10)   # Final classification layer for 10 classes
 
     def forward(self, x):
         x = self.cnn(x)
-        x = self.fc2(x)
-        x = x.detach().numpy()  # Convert tensor to numpy array for quantum processing
-        quantum_output = quantum_layer(x)  # Pass through quantum layer
-        quantum_output = torch.tensor(quantum_output, dtype=torch.float32)  # Convert back to tensor
-        x = F.relu(quantum_output)
+        x = self.quantum_layer(x)  # Pass through quantum layer
+        x = F.relu(x)
         x = self.fc3(x)
         return x
 
