@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mnr-v-quantum-tests"
+version = "0.2.0"
+description = "A small, differentiable PyTorch CNN and Qiskit experiment"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26,<3", "torch>=2.2,<3", "qiskit>=2.0,<3"]
+
+[project.optional-dependencies]
+aer = ["qiskit-aer>=0.17,<1"]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1", "build>=1.2,<2"]
+
+[project.scripts]
+mnr-quantum = "mnr_quantum.demo:main"
+
+[project.urls]
+Repository = "https://github.com/robathanjames/mnr-v-quantum_tests"
+
+[tool.setuptools.packages.find]
+include = ["mnr_quantum*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
