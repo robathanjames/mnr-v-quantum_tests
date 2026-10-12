@@ -1,0 +1,2 @@
+include README.md mnr-v_c.py
+recursive-include tests *.py
